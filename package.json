@@ -1,0 +1,19 @@
+{
+  "name": "elastic-aggs",
+  "version": "1.0.0",
+  "description": "Typescript definitions for type-safe ElasticSearch aggregations",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "Typescript",
+    "types",
+    "ElasticSearch"
+  ],
+  "author": "",
+  "license": "ISC",
+  "peerDependencies": {
+    "@elastic/elasticsearch": "^7.x"
+  }
+}
