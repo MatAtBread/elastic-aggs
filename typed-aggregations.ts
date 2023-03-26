@@ -341,24 +341,20 @@ export const AnyDoc = undefined as { [field: string]: AnyDocField }
 
 declare module '@elastic/elasticsearch/api/new' {
   interface Client {
-    /*search<Params extends SearchParams, Doc extends {}, TContext>(
+    vsearch<Params extends SearchParams<typeof AnyDoc>>(
       params: Params)
-      :TransportRequestPromise<ApiResponse<SearchResult<Params,Doc>, TContext>>*/
-
-    /*vsearch<Params extends SearchParams<typeof AnyDoc>, TContext>(
-      params: Params)
-      : TransportRequestPromise<ApiResponse<SearchResult<Params, typeof AnyDoc>, TContext>>
-    */
-    vsearch<Params extends SearchParams<Doc>, Doc extends {}, TContext>(
+      : TransportRequestPromise<ApiResponse<SearchResult<Params, typeof AnyDoc>, unknown>>
+    
+    vsearch<Doc extends {}, Params extends SearchParams<Doc>>(
       params: Params,
-      _unused_doc_type_inference_: Doc)
-      : TransportRequestPromise<ApiResponse<SearchResult<Params, Doc>, TContext>>
+      _unused_doc_type_inference_?: Doc)
+      : TransportRequestPromise<ApiResponse<SearchResult<Params, Doc>, unknown>>
 
-    /*search<Params extends SearchParams, Doc extends {}, TContext>(
+    vsearch<Doc extends {}, Params extends SearchParams<Doc>, TContext>(
       params: Params,
-      _unused_doc_type_inference_: Doc,
-      _unused_context_type_inference_: TContext)
-      :TransportRequestPromise<ApiResponse<SearchResult<Params,Doc>, TContext>>*/
+      _unused_doc_type_inference_?: Doc,
+      _unused_context_type_inference_?: TContext)
+      : TransportRequestPromise<ApiResponse<SearchResult<Params,Doc>, TContext>>
   }
 }
 

@@ -16,17 +16,17 @@ const { body: { aggregations : a }} = await e.vsearch({
       }
     },
     aggs: {
-      v:{
+      aValueCount:{
         value_count:{
           field: 'o.n'
         }
       },
-      s: {
+      aSum: {
         sum: {
           field: 'o.n'
         }
       },
-      h: {
+      aHistogram: {
         histogram:{
           field: 'n'
         },
@@ -38,31 +38,39 @@ const { body: { aggregations : a }} = await e.vsearch({
           }
         }
       },
-      t: {
+      aTerms: {
         terms:{
           field: 's'
         },
         aggs:{
-          c: {
+          termCardinality: {
             cardinality:{
               field: 'n'
             }
           }
         }
       },
-      f: {
+      aFilter: {
         filter:{
           match_all: {}
+        },
+        aggs:{
+          more:{
+            top_hits:{
+              size: 1
+            }
+          }
         }
       }
     }
   } 
 }, SourceDoc as MyDoc);
 
-a.v.value;
-a.t.buckets[0].c.value;
-a.s.value;
-a.h.buckets[0].z.doc_count;
+a.aValueCount.value
+a.aTerms.buckets[0].termCardinality.value
+a.aSum.value
+a.aHistogram.buckets[0].z.doc_count
+a.aFilter.more.hits.hits[0]._source
 
 /*
 //var w: MapElasticAggregation<MyDoc,'value_count'>;
