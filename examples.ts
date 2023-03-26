@@ -1,6 +1,6 @@
 /*** TEST CODE */
 
-import { Client, NamedSubAggregations, SourceDoc } from './typed-aggregations';
+import { Client, NamedAggregations, SourceDoc } from './typed-aggregations';
 
 type MyDoc = {n: number, o: { n: number, s: string }, s: string};
 
@@ -55,7 +55,7 @@ const { body: { aggregations : a }} = await e.vsearch({
           match_all: {}
         }
       }
-    } satisfies NamedSubAggregations<MyDoc>
+    } satisfies NamedAggregations<MyDoc>
   } 
 }, SourceDoc as MyDoc);
 
