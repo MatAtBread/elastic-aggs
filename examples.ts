@@ -5,7 +5,7 @@ import { Client, NamedAggregations, SourceDoc } from './typed-aggregations';
 type MyDoc = {n: number, o: { n: number, s: string }, s: string};
 
 const e = new Client({});
-const { body: { aggregations : a }} = await e.vsearch({
+e.vsearch({
   index: '',
   body:{
     query:{
@@ -64,13 +64,14 @@ const { body: { aggregations : a }} = await e.vsearch({
       }
     }
   } 
-}, SourceDoc as MyDoc);
+}, SourceDoc as MyDoc).then(({ body: { aggregations : a }}) => {
+  a.aValueCount.value;
+  a.aTerms.buckets[0].termCardinality.value;
+  a.aSum.value;
+  a.aHistogram.buckets[0].z.doc_count;
+  a.aFilter.more.hits.hits[0]._source;
+});
 
-a.aValueCount.value
-a.aTerms.buckets[0].termCardinality.value
-a.aSum.value
-a.aHistogram.buckets[0].z.doc_count
-a.aFilter.more.hits.hits[0]._source
 
 /*
 //var w: MapElasticAggregation<MyDoc,'value_count'>;
