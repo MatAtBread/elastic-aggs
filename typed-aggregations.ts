@@ -75,6 +75,10 @@ type TypedFieldAggregations<Doc extends {}> = {
   [AggKey in LeafAggregations]: MapElasticAggregation<Doc, AggKey>;
 }
 
+export interface NamedSubAggregations<Doc extends {}> {
+    [name: string]: Aggregation<Doc>
+  }
+
 declare namespace Aggregations {
   interface ValueResult {
     value: number;
@@ -128,9 +132,6 @@ declare namespace Aggregations {
   }
 
   /* Multi-value aggregations with buckets that can be nested */
-  interface NamedSubAggregations<Doc extends {}> {
-    [name: string]: Aggregation<Doc>
-  }
   interface NestedAggregation<Doc extends {}> {
     aggs?: NamedSubAggregations<Doc>
   }
@@ -321,7 +322,7 @@ type AggregationResult<T,Doc> =
   //T extends Aggregations.NestedAggregation<Doc> ? Aggregations.GenericBucketResult<T["aggs"], Doc> : never |
   never;
 
-type AggregationResults<A extends Aggregations.NamedSubAggregations<Doc>, Doc extends {}> = {
+type AggregationResults<A extends NamedSubAggregations<Doc>, Doc extends {}> = {
   [name in keyof A]: AggregationResult<A[name], Doc>
 }
 
@@ -334,7 +335,7 @@ interface Document<Source extends {}> {
 }
 
 type SearchParamsBody<Doc extends {}> = Omit<SearchRequest['body'],'aggs'> & {
-  aggs: Aggregations.NamedSubAggregations<Doc>;
+  aggs: NamedSubAggregations<Doc>;
 }
 
 interface SearchParams<Doc extends {}> extends Omit<SearchRequest,'body'> {
@@ -359,6 +360,10 @@ declare module '@elastic/elasticsearch/api/new' {
       params: Params)
       :TransportRequestPromise<ApiResponse<SearchResult<Params,Doc>, TContext>>;*/
 
+    vsearch<Params extends SearchParams<typeof AnyDoc>, TContext>(
+      params: Params)
+      : TransportRequestPromise<ApiResponse<SearchResult<Params, typeof AnyDoc>, TContext>>;
+
     vsearch<Params extends SearchParams<Doc>, Doc extends {}, TContext>(
       params: Params,
       _unused_doc_type_inference_: Doc)
@@ -372,108 +377,5 @@ declare module '@elastic/elasticsearch/api/new' {
   }
 }
 
-/*** TEST CODE */
+export { Client };
 
-type MyDoc = {n: number, o: { n: number, s: string }, s: string};
-
-var w: MapElasticAggregation<MyDoc,'value_count'>;
-w.value_count.field = 'o.n';
-
-const e = new Client({});
-const { body: { aggregations : a }} = await e.vsearch({
-  index: '',
-  body:{
-    query:{
-      bool:{
-        filter:{
-          match_all:{}
-        }
-      }
-    },
-    aggs: {
-      v:{
-        value_count:{
-          field: 'o.n'
-        }
-      },
-      s: {
-        sum: {
-          field: 'o.n'
-        }
-      },
-      h: {
-        histogram:{
-          field: 'n'
-        },
-        aggs:{
-          z:{
-            missing:{
-              field:'s'
-            }
-          }
-        }
-      },
-      t: {
-        terms:{
-          field: 's'
-        },
-        aggs:{
-          c: {
-            cardinality:{
-              field: 'n'
-            }
-          }
-        }
-      },
-      f: {
-        filter:{
-          match_all: {}
-        }
-      }
-    } satisfies Aggregations.NamedSubAggregations<MyDoc>
-  } 
-}, SourceDoc as MyDoc);
-
-a.v.value;
-a.t.buckets[0].c.value;
-a.s.value;
-a.h.buckets[0].z.doc_count;
-
-var n: Aggregations.NamedSubAggregations<MyDoc> = {
-  name:{
-    value_count:{
-      field: 'o.n'
-    }
-  }
-}
-
-var tt: TypedFieldAggregations<MyDoc>['terms'] = {
-  terms:{
-    field: 's'
-  },
-  aggs:{
-    sub2: {
-      min: {
-        field: 'n'
-      }
-    },
-    sub1:{
-      sum:{
-        field: 'o.n'
-      }
-    }
-  } 
-} as const;
-tt.aggs
-
-var y: AggregationResult<typeof tt, MyDoc>;
-y.buckets[0]
-
-var ka:DotKeys<MyDoc>;
-ka = 'o'
-var kn:DotKeys<MyDoc,number>;
-kn = 'o.n'
-var ks:DotKeys<MyDoc,string>;
-ks = 'o.s'
-var ko:DotKeys<MyDoc,number|string>;
-ko = 'n'
