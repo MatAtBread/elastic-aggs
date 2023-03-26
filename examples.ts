@@ -55,7 +55,7 @@ const { body: { aggregations : a }} = await e.vsearch({
           match_all: {}
         }
       }
-    } satisfies NamedAggregations<MyDoc>
+    }
   } 
 }, SourceDoc as MyDoc);
 

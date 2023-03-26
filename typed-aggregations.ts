@@ -16,6 +16,10 @@ type ExclusiveUnion<T, U = T> = T extends any
   ? T & Partial<Record<Exclude<U extends any ? keyof U : never, keyof T>, never>>
   : never
 
+type DeepReadonly<T extends {}> = {
+  readonly [P in keyof T]: T[P] extends object ? DeepReadonly<T[P]> : T[P];
+}
+
 /* Obtain the keys of a object, including nested keys in dotted notation.
   Optionally, only match keys assignable to the specified FilterUnion type,
   ignoring all others. Like `keyof` for nested objects
@@ -78,9 +82,9 @@ interface OptionalNestedAggregations<Doc extends {}> {
   aggs?: NamedAggregations<Doc>
 }
 
-export interface NamedAggregations<Doc extends {}> {
+export type NamedAggregations<Doc extends {}> = DeepReadonly<{
   [aggregationName: string]: Aggregation<Doc>
-}
+}>;
 
 type NestedAggregationResult<SubAggs,Doc extends {}> =
   SubAggs extends NamedAggregations<Doc>
@@ -318,7 +322,7 @@ interface Document<Source extends {}> {
   _source: Source
 }
 
-interface SearchParams<Doc extends {}> extends SearchRequest {
+interface SearchParams<Doc extends {}> extends Omit<SearchRequest,'body'> {
   body: Omit<SearchRequest['body'],'aggs'> & {
     aggs: NamedAggregations<Doc>
   }
@@ -341,10 +345,10 @@ declare module '@elastic/elasticsearch/api/new' {
       params: Params)
       :TransportRequestPromise<ApiResponse<SearchResult<Params,Doc>, TContext>>*/
 
-    vsearch<Params extends SearchParams<typeof AnyDoc>, TContext>(
+    /*vsearch<Params extends SearchParams<typeof AnyDoc>, TContext>(
       params: Params)
       : TransportRequestPromise<ApiResponse<SearchResult<Params, typeof AnyDoc>, TContext>>
-
+    */
     vsearch<Params extends SearchParams<Doc>, Doc extends {}, TContext>(
       params: Params,
       _unused_doc_type_inference_: Doc)
