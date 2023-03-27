@@ -1,4 +1,4 @@
-import { AggregationsAggregationContainer, AggregationsTopHitsAggregation, QueryDslQueryContainer, SearchRequest, SearchResponse } from '@elastic/elasticsearch/api/types'
+import { AggregationsAggregationContainer, QueryDslQueryContainer, SearchRequest, SearchResponse, SearchSourceConfig } from '@elastic/elasticsearch/api/types'
 import { ApiResponse, Client } from '@elastic/elasticsearch/api/new'
 import { TransportRequestPromise } from '@elastic/elasticsearch/lib/Transport'
 
@@ -18,6 +18,13 @@ type ExclusiveUnion<T, U = T> = T extends any
 
 type DeepReadonly<T extends {}> = {
   readonly [P in keyof T]: T[P] extends object ? DeepReadonly<T[P]> : T[P];
+}
+
+/* Replace a field within an object with one of the same name but different (typically narrower) type,
+ * preserving optional state 
+*/
+type ReType<T, K extends keyof T, NewType> = {
+  [S in keyof T]: S extends K ? T[S] extends undefined ? undefined | NewType : NewType : T[S]
 }
 
 /* Obtain the keys of a object, including nested keys in dotted notation.
@@ -51,17 +58,33 @@ type UnDot<T extends object, D extends string> =
     ? T[D] 
     : never 
 
-
+/* Recursively pick fiekds specified in dot-notation */
+type DotPick<T, D extends string|string[]> = UnionToIntersection<
+ D extends `${infer P}.${infer Q}` 
+  ? { [I in Extract<P,keyof T>]: DotPick<T[I],Q> }
+  : Pick<T,Extract<D,keyof T>>>
+  
 /* Map an aggregation by name from the Elastocsearch definitions, replacing `field` 
   (if it exists) with the Doc-specific union of dot-notation keys 
 */
 type MapElasticAggregation<Doc extends {}, Name extends keyof AggregationsAggregationContainer> = {
-  [k in Name]: AggregationsAggregationContainer[Name] extends { field?: string }
-    ? AggregationsAggregationContainer[Name] & { field?: DotKeys<Doc>}
-    : AggregationsAggregationContainer[Name] extends { field: string }
-      ? AggregationsAggregationContainer[Name] & { field: DotKeys<Doc>}
+  [k in Name]: AggregationsAggregationContainer[Name] extends { field: string }
+    ? AggregationsAggregationContainer[Name] & { field: DotKeys<Doc>}
+    : AggregationsAggregationContainer[Name] extends { field?: string }
+      ? AggregationsAggregationContainer[Name] & { field?: DotKeys<Doc>}
       : AggregationsAggregationContainer[Name]
 }
+
+// Replacaements for the un-dot-typed types in ES7
+type TypedFields<Doc extends {}> = DotKeys<Doc> | DotKeys<Doc>[]
+type TypedSearchSourceFilter<Doc extends {}> = {
+  // TODO: should be exclusive
+  excludes?: TypedFields<Doc>
+  exclude?: TypedFields<Doc>
+  includes?: TypedFields<Doc>
+  include?: TypedFields<Doc>
+};
+type TypedSearchSourceConfig<Doc extends {}> = boolean | TypedSearchSourceFilter<Doc> | TypedFields<Doc>;
 
 /* The list of "simple" aggregations that only require a Doc parameter & can't have sub-aggregations */
 type LeafAggregationKeys = 'value_count' | 'sum' | 'missing' | 'cardinality' | 'avg' | 'min' | 'max' | 'percentiles' | 'stats'
@@ -75,6 +98,10 @@ type TypedFieldAggregations<Doc extends {}> = {
   [AggKey in NodeAggregationKeys]: MapElasticAggregation<Doc, AggKey> & OptionalNestedAggregations<Doc>
 } & {
   [AggKey in LeafAggregationKeys]: MapElasticAggregation<Doc, AggKey>
+} & {
+  top_hits: { 
+    top_hits: ReType<AggregationsAggregationContainer['top_hits'],'_source',undefined | Readonly<TypedSearchSourceConfig<Doc>>> 
+  }
 }
 
 /* An interface from which aggregations thar can have nested aggregations can be extended */
@@ -127,19 +154,29 @@ declare namespace Aggregations {
     sum: number
   }
 
-  interface TopHits<Doc> {
+  /*interface TopHits<Doc> {
     top_hits: Omit<AggregationsTopHitsAggregation, '_source'> & {
       _source?: {
         includes: (keyof Doc)[]
       }
     }
-  }
+  }*/
+  
+  type Prettify<T> = T extends infer U ? { [K in keyof U]: U[K] extends object ? Prettify<U[K]> : U[K] } : never;
+  type SourceDocFromTypedSourceConfig<SourceConfig extends Readonly<TypedSearchSourceConfig<Doc>>, Doc extends {}> = 
+    SourceConfig extends false ? undefined 
+    : SourceConfig extends true ? Doc 
+    : SourceConfig extends boolean ? Doc | undefined 
+//    : SourceConfig extends DotKeys<Doc>[] ? DotPick<Doc, SourceConfig> 
+    : SourceConfig extends TypedFields<Doc> ? DotPick<Doc, SourceConfig> 
+    : SourceConfig extends TypedSearchSourceFilter<Doc> ? "typed-fields" 
+    : Prettify<SourceConfig>
 
-  interface TopHitsResult<Doc extends {}, HighLightResult = Doc> {
+  interface TopHitsResult<Doc extends {}, ThisAgg extends TypedFieldAggregations<Doc>['top_hits']> {
     hits: {
       total: number
       max_score: number
-      hits: Document<Doc>[]
+      hits: Document<SourceDocFromTypedSourceConfig<ThisAgg['top_hits']['_source'], Doc>>[]
     }
   }
 
@@ -276,7 +313,8 @@ type AggregationResult<T,Doc> =
   T extends TypedFieldAggregations<Doc>['stats'] ? Aggregations.StatsResult : never |
 
   T extends Aggregations.ScriptedMetric<infer Results,infer Params> ? Aggregations.ScriptedMetricResult<Results> : never |
-  T extends Aggregations.TopHits<infer D> ? (D extends {} ? Aggregations.TopHitsResult<D> : never) : never |
+  //T extends TypedFieldAggregations<Doc>['top_hits'] ? (D extends {} ? Aggregations.TopHitsResult<D> : never) : never |
+  T extends TypedFieldAggregations<Doc>['top_hits'] ? Aggregations.TopHitsResult<Doc, T> : never |
 
   // Non-terminal aggs that _might_ have sub aggs
   T extends TypedFieldAggregations<Doc>['terms'] ? Aggregations.TermsResult<T["aggs"], Doc> : never |
@@ -299,6 +337,7 @@ type AggregationResults<A extends NamedAggregations<Doc>, Doc extends {}> = {
 type Aggregation<Doc extends {}> = ExclusiveUnion<
 /* Single-valued */
 TypedFieldAggregations<Doc>[LeafAggregationKeys] 
+| TypedFieldAggregations<Doc>['top_hits']
 | Aggregations.ReverseNested<Doc> 
 | Aggregations.Filter<Doc> 
 | Aggregations.NamedFilters<Doc, string>
@@ -307,7 +346,7 @@ TypedFieldAggregations<Doc>[LeafAggregationKeys]
 /* Multi-valued */
 | TypedFieldAggregations<Doc>[NodeAggregationKeys] 
 | Aggregations.OrderedFilters<Doc> 
-| Aggregations.TopHits<any>
+//| Aggregations.TopHits<any>
 | Aggregations.Range<Doc>
 | Aggregations.NestedDoc<Doc>
 
@@ -359,4 +398,27 @@ declare module '@elastic/elasticsearch/api/new' {
 }
 
 export { Client }
+
+const DOC = {doc: 'abc', z: 123, q: { m: 456 }};
+const TOP: TypedFieldAggregations<typeof DOC>['top_hits'] = {
+  top_hits: {
+    _source: ['q.m']
+  }
+}
+
+const RES:Aggregations.TopHitsResult<typeof DOC,typeof TOP> = {
+  hits:{
+    max_score:0,
+    total:0,
+    hits:[{
+      _id:'',
+      _index: '',
+      _source:{
+        q:{
+          m: 123
+        }
+      }
+    }]
+  }
+}
 

@@ -53,14 +53,15 @@ e.vsearch({
       aFilter: {
         filter:{
           match_all: {}
-        },
+        }/*,
         aggs:{
-          more:{
+          aTop:{
             top_hits:{
-              size: 1
+              _source:['n','o.n'],
+              size: 2
             }
-          }
-        }
+          } 
+        }*/
       }
     }
   } 
@@ -69,7 +70,7 @@ e.vsearch({
   a.aTerms.buckets[0].termCardinality.value;
   a.aSum.value;
   a.aHistogram.buckets[0].z.doc_count;
-  a.aFilter.more.hits.hits[0]._source;
+  a.aFilter.doc_count
 });
 
 
