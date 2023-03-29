@@ -2,6 +2,8 @@ import { AggregationsAggregationContainer, QueryDslQueryContainer, SearchRequest
 import { ApiResponse, Client } from '@elastic/elasticsearch/api/new'
 import { TransportRequestPromise } from '@elastic/elasticsearch/lib/Transport'
 
+type Prettify<T> = T extends infer U ? { [K in keyof U]: U[K] extends object ? Prettify<U[K]> : U[K] } : never;
+
 /* Some helper types */
 type UnionToIntersection<U> =
   (U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I : never
@@ -83,8 +85,9 @@ type TypedSearchSourceFilter<Doc extends {}> = {
   exclude?: TypedFields<Doc>
   includes?: TypedFields<Doc>
   include?: TypedFields<Doc>
-};
-type TypedSearchSourceConfig<Doc extends {}> = boolean | TypedSearchSourceFilter<Doc> | TypedFields<Doc>;
+}
+
+type TypedSearchSourceConfig<Doc extends {}> = boolean | TypedSearchSourceFilter<Doc> | TypedFields<Doc>
 
 /* The list of "simple" aggregations that only require a Doc parameter & can't have sub-aggregations */
 type LeafAggregationKeys = 'value_count' | 'sum' | 'missing' | 'cardinality' | 'avg' | 'min' | 'max' | 'percentiles' | 'stats'
@@ -153,24 +156,14 @@ declare namespace Aggregations {
     avg: number,
     sum: number
   }
-
-  /*interface TopHits<Doc> {
-    top_hits: Omit<AggregationsTopHitsAggregation, '_source'> & {
-      _source?: {
-        includes: (keyof Doc)[]
-      }
-    }
-  }*/
   
-  type Prettify<T> = T extends infer U ? { [K in keyof U]: U[K] extends object ? Prettify<U[K]> : U[K] } : never;
   type SourceDocFromTypedSourceConfig<SourceConfig extends Readonly<TypedSearchSourceConfig<Doc>>, Doc extends {}> = 
     SourceConfig extends false ? undefined 
     : SourceConfig extends true ? Doc 
     : SourceConfig extends boolean ? Doc | undefined 
-//    : SourceConfig extends DotKeys<Doc>[] ? DotPick<Doc, SourceConfig> 
     : SourceConfig extends TypedFields<Doc> ? DotPick<Doc, SourceConfig> 
     : SourceConfig extends TypedSearchSourceFilter<Doc> ? "typed-fields" 
-    : Prettify<SourceConfig>
+    : never
 
   interface TopHitsResult<Doc extends {}, ThisAgg extends TypedFieldAggregations<Doc>['top_hits']> {
     hits: {
@@ -229,34 +222,12 @@ declare namespace Aggregations {
     buckets: Array<GenericBucket & NestedAggregationResult<SubAggs, Doc>>
   }
 
-  /*interface Terms<Doc extends {},Type extends string | number = string | number> extends NestedAggregation<Doc> {
-    terms: {
-      field: DotKeys<Doc, string | number | boolean>
-      min_doc_count?: number
-      size?: number
-      include?: Type[]
-      missing?: Type,
-      order?: ({ [k: string]: 'asc' | 'desc' }) | ({ [k: string]: 'asc' | 'desc' }[])
-    }
-  }*/
-
   interface TermsResult<SubAggs, Doc extends {}> {
     doc_count_error_upper_bound: number,
     sum_other_doc_count: number,
     buckets: Array<NestedAggregationResult<SubAggs, Doc> & GenericBucket>
   }
 
-  /*interface Histogram<Doc extends {}> extends NestedAggregation<Doc> {
-    histogram: {
-      field: string,
-      interval: string | number,
-      min_doc_count: number,
-      extended_bounds?: {
-        min: number
-        max: number
-      }
-    }
-  }*/
   interface HistogramResult<SubAggs, Doc extends {}> {
     buckets: Array<GenericBucket & NestedAggregationResult<SubAggs, Doc>>
   }
@@ -313,7 +284,6 @@ type AggregationResult<T,Doc> =
   T extends TypedFieldAggregations<Doc>['stats'] ? Aggregations.StatsResult : never |
 
   T extends Aggregations.ScriptedMetric<infer Results,infer Params> ? Aggregations.ScriptedMetricResult<Results> : never |
-  //T extends TypedFieldAggregations<Doc>['top_hits'] ? (D extends {} ? Aggregations.TopHitsResult<D> : never) : never |
   T extends TypedFieldAggregations<Doc>['top_hits'] ? Aggregations.TopHitsResult<Doc, T> : never |
 
   // Non-terminal aggs that _might_ have sub aggs
@@ -402,7 +372,7 @@ export { Client }
 const DOC = {doc: 'abc', z: 123, q: { m: 456 }};
 const TOP: TypedFieldAggregations<typeof DOC>['top_hits'] = {
   top_hits: {
-    _source: ['q.m']
+    _source: 'q.m'
   }
 }
 
@@ -413,11 +383,11 @@ const RES:Aggregations.TopHitsResult<typeof DOC,typeof TOP> = {
     hits:[{
       _id:'',
       _index: '',
-      _source:{
+      _source: {
         q:{
-          m: 123
+          m: 456
         }
-      }
+      } as DotPick<typeof DOC, 'q.m'> // Need to find a way to derive this from the original Agg
     }]
   }
 }

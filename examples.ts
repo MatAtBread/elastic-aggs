@@ -1,6 +1,6 @@
 /*** TEST CODE */
 
-import { Client, NamedAggregations, SourceDoc } from './typed-aggregations';
+import { Client, SourceDoc } from './typed-aggregations';
 
 type MyDoc = {n: number, o: { n: number, s: string }, s: string};
 
@@ -53,15 +53,15 @@ e.vsearch({
       aFilter: {
         filter:{
           match_all: {}
-        }/*,
+        },
         aggs:{
           aTop:{
             top_hits:{
               _source:['n','o.n'],
               size: 2
-            }
+            } as const
           } 
-        }*/
+        }
       }
     }
   } 
