@@ -50,6 +50,26 @@ e.vsearch({
           }
         }
       },
+      aFilters:{
+        filters: {
+          filters: {
+            big: {
+              range: {
+                'o.n': {
+                  gte: 10
+                }
+              }
+            },
+            small: {
+              range: {
+                'o.n': {
+                  lt: 10
+                }
+              }
+            }
+          }
+        }
+      },
       aFilter: {
         filter:{
           match_all: {}
@@ -66,6 +86,7 @@ e.vsearch({
     }
   } 
 }, SourceDoc as MyDoc).then(({ body: { aggregations : a }}) => {
+  a.aFilters.buckets.big.doc_count,
   a.aValueCount.value;
   a.aTerms.buckets[0].termCardinality.value;
   a.aSum.value;
@@ -73,8 +94,30 @@ e.vsearch({
   a.aFilter.doc_count
 });
 
-
 /*
+const DOC = {doc: 'abc', z: 123, q: { m: 456 }};
+const TOP: TypedFieldAggregations<typeof DOC>['top_hits'] = {
+  top_hits: {
+    _source: 'q.m'
+  }
+}
+
+const RES:Aggregations.TopHitsResult<typeof TOP, typeof DOC> = {
+  hits:{
+    max_score:0,
+    total:0,
+    hits:[{
+      _id:'',
+      _index: '',
+      _source: {
+        q:{
+          m: 456
+        }
+      }
+    }]
+  }
+}
+
 //var w: MapElasticAggregation<MyDoc,'value_count'>;
 //w.value_count.field = 'o.n';
 
