@@ -106,7 +106,7 @@ type NodeAggregationKeys = 'date_histogram' | 'histogram' | 'terms'
 /* The collection of mapped Elasticsearch aggregations that only 
  * require a Doc parameter keyed by distinguishing member
 */
-type TypedFieldAggregations<Doc extends {}> = {
+export type TypedFieldAggregations<Doc extends {}> = {
   [AggKey in NodeAggregationKeys]: MapElasticAggregation<Doc, AggKey> & OptionalNestedAggregations<Doc>
 } & {
   [AggKey in LeafAggregationKeys]: MapElasticAggregation<Doc, AggKey>
@@ -290,7 +290,7 @@ interface MultiAggMap {
 
 }
 
-type AggregationResult<T,Doc> =
+export type AggregationResult<T,Doc> =
   // Terminal results which cannot have inner aggs
   T extends TypedFieldAggregations<Doc>['value_count'] ? ValueAggMap['value_count'] : never |
   T extends TypedFieldAggregations<Doc>['missing'] ? ValueAggMap['missing'] : never |

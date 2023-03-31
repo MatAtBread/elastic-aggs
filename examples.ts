@@ -1,6 +1,6 @@
 /*** TEST CODE */
 
-import { Client, SourceDoc } from './typed-aggregations';
+import { AggregationResult, Client, SourceDoc, TypedFieldAggregations } from './typed-aggregations';
 
 type MyDoc = {n: number, o: { n: number, s: string }, s: string};
 
@@ -91,10 +91,9 @@ e.vsearch({
   a.aTerms.buckets[0].termCardinality.value;
   a.aSum.value;
   a.aHistogram.buckets[0].z.doc_count;
-  a.aFilter.doc_count
+  a.aFilter.aTop.hits.hits[0]._source
 });
 
-/*
 const DOC = {doc: 'abc', z: 123, q: { m: 456 }};
 const TOP: TypedFieldAggregations<typeof DOC>['top_hits'] = {
   top_hits: {
@@ -102,7 +101,7 @@ const TOP: TypedFieldAggregations<typeof DOC>['top_hits'] = {
   }
 }
 
-const RES:Aggregations.TopHitsResult<typeof TOP, typeof DOC> = {
+const RES: AggregationResult<typeof TOP, typeof DOC> = {
   hits:{
     max_score:0,
     total:0,
@@ -121,7 +120,7 @@ const RES:Aggregations.TopHitsResult<typeof TOP, typeof DOC> = {
 //var w: MapElasticAggregation<MyDoc,'value_count'>;
 //w.value_count.field = 'o.n';
 
-
+/*
 a.v.value;
 a.t.buckets[0].c.value;
 a.s.value;
