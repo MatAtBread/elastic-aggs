@@ -223,21 +223,17 @@ declare namespace Aggregations {
     buckets: Array<GenericBucket & NestedAggregationResult<ThisAgg, Doc>>
   }
 
-  interface TermsResult<ThisAgg, Doc extends {}> {
+  interface TermsResult<ThisAgg extends TypedFieldAggregations<Doc>["terms"], Doc extends {}> {
     doc_count_error_upper_bound: number,
     sum_other_doc_count: number,
-    buckets: Array<NestedAggregationResult<ThisAgg, Doc> & GenericBucket<
-      ThisAgg extends TypedFieldAggregations<Doc>["terms"] 
-      ? UnDot<Doc,ThisAgg['terms']['field']>
-      : unknown
-    >>
+    buckets: Array<NestedAggregationResult<ThisAgg, Doc> & GenericBucket<UnDot<Doc,ThisAgg['terms']['field']>>>
   }
 
-  interface HistogramResult<ThisAgg, Doc extends {}> {
-    buckets: Array<GenericBucket & NestedAggregationResult<ThisAgg, Doc>>
+  interface HistogramResult<ThisAgg extends TypedFieldAggregations<Doc>['histogram'], Doc extends {}> {
+    buckets: Array<GenericBucket<UnDot<Doc,ThisAgg['histogram']['field']>> & NestedAggregationResult<ThisAgg, Doc>>
   }
 
-  interface DateHistogramResult<ThisAgg, Doc extends {}> {
+  interface DateHistogramResult<ThisAgg extends TypedFieldAggregations<Doc>['date_histogram'], Doc extends {}> {
     buckets: Array<{
       key_as_string: string
     } & GenericBucket<number> & NestedAggregationResult<ThisAgg, Doc>>
@@ -313,6 +309,7 @@ export type AggregationResult<T,Doc> =
   // Non-terminal aggs that _might_ have sub aggs
   T extends TypedFieldAggregations<Doc>['terms'] ? Aggregations.TermsResult<T, Doc> : never |
   T extends TypedFieldAggregations<Doc>['histogram'] ? Aggregations.HistogramResult<T, Doc> : never |
+  T extends TypedFieldAggregations<Doc>['date_histogram'] ? Aggregations.DateHistogramResult<T, Doc> : never |
 
   T extends Aggregations.Filter<Doc> ? Aggregations.FilterResult<T, Doc> : never |
   T extends Aggregations.NestedDoc<Doc> ? Aggregations.NestedDocResult<T, Doc> : never |

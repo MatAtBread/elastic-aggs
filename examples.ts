@@ -86,12 +86,13 @@ e.vsearch({
     }
   } 
 }, SourceDoc as MyDoc).then(({ body: { aggregations : a }}) => {
-  a.aFilters.buckets.big.doc_count,
+  a.aFilters.buckets.big.doc_count;
   a.aValueCount.value;
   a.aTerms.buckets[0].key;
   a.aTerms.buckets[0].termCardinality.value;
   a.aSum.value;
-  a.aHistogram.buckets[0].z.doc_count;
+  a.aHistogram.buckets[0].key;
+  a.aHistogram.buckets[0].z.doc_count
   a.aFilter.aTop.hits.hits[0]._source
 });
 
