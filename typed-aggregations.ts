@@ -226,7 +226,11 @@ declare namespace Aggregations {
   interface TermsResult<ThisAgg, Doc extends {}> {
     doc_count_error_upper_bound: number,
     sum_other_doc_count: number,
-    buckets: Array<NestedAggregationResult<ThisAgg, Doc> & GenericBucket>
+    buckets: Array<NestedAggregationResult<ThisAgg, Doc> & GenericBucket<
+      ThisAgg extends TypedFieldAggregations<Doc>["terms"] 
+      ? UnDot<Doc,ThisAgg['terms']['field']>
+      : unknown
+    >>
   }
 
   interface HistogramResult<ThisAgg, Doc extends {}> {
