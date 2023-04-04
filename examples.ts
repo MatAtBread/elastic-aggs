@@ -5,7 +5,8 @@ import { AggregationResult, Client, SourceDoc, TypedFieldAggregations } from './
 type MyDoc = {n: number, o: { n: number, s: string, d: Date }, s: string};
 
 const e = new Client({});
-e.vsearch({
+e.search({
+  Doc: SourceDoc as MyDoc,
   index: '',
   body:{
     query:{
@@ -40,7 +41,7 @@ e.vsearch({
       },
       aTerms: {
         terms:{
-          field: 'o.n'
+          field: 'o.s'
         },
         aggs:{
           termCardinality: {
@@ -85,7 +86,7 @@ e.vsearch({
       }
     }
   } 
-}, SourceDoc as MyDoc).then(({ body: { aggregations : a }}) => {
+}).then(({ body: { aggregations : a }}) => {
   a.aFilters.buckets.big.doc_count;
   a.aValueCount.value;
   a.aTerms.buckets[0].key;

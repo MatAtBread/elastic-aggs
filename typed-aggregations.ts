@@ -371,10 +371,10 @@ export const AnyDoc = undefined as { [field: string]: AnyDocField }
 
 declare module '@elastic/elasticsearch/api/new' {
   interface Client {
-    vsearch<Params extends SearchParams<typeof AnyDoc>>(
-      params: Params)
-      : TransportRequestPromise<ApiResponse<SearchResult<Params, typeof AnyDoc>, unknown>>
-    
+    search<Doc extends {}, Params extends SearchParams<Doc>>(
+      params: Params & { Doc: Doc })
+      : TransportRequestPromise<ApiResponse<SearchResult<Params, Doc>, unknown>>
+    /*
     vsearch<Doc extends {}, Params extends SearchParams<Doc>>(
       params: Params,
       _unused_doc_type_inference_?: Doc)
@@ -385,6 +385,7 @@ declare module '@elastic/elasticsearch/api/new' {
       _unused_doc_type_inference_?: Doc,
       _unused_context_type_inference_?: TContext)
       : TransportRequestPromise<ApiResponse<SearchResult<Params,Doc>, TContext>>
+      */
   }
 }
 
