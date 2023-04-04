@@ -51,7 +51,16 @@ e.search({
           }
         }
       },
-      aFilters:{
+      aIndexedFilters: {
+        filters: {
+          filters: [{
+            term: { n: 0 }
+          }, {
+            term: { n: 1 }
+          }]
+        }
+      },
+      aNamedFilters:{
         filters: {
           filters: {
             big: {
@@ -78,16 +87,27 @@ e.search({
         aggs:{
           aTop:{
             top_hits:{
-              _source:['n','o.n'],
+              _source:['n','o.n'] as const,
               size: 2
-            } as const
+            }
           } 
+        }
+      },
+      aRange: {
+        range:{
+          field: 'n',
+          ranges:[{
+            from: 0,
+            to: 1,
+            key: 'low'
+          }]
         }
       }
     }
   } 
 }).then(({ body: { aggregations : a }}) => {
-  a.aFilters.buckets.big.doc_count;
+  a.aNamedFilters.big.doc_count;
+  a.aIndexedFilters.buckets[0].key;
   a.aValueCount.value;
   a.aTerms.buckets[0].key;
   a.aTerms.buckets[0].termCardinality.value;

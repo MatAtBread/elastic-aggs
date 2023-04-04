@@ -78,7 +78,7 @@ type DotPick<T, D extends string|string[]> = UnionToIntersection<
 /* Map an aggregation by name from the Elastocsearch definitions, replacing `field` 
   (if it exists) with the Doc-specific union of dot-notation keys 
 */
-type MapElasticAggregation<Doc extends {}, Name extends keyof AggregationsAggregationContainer> = {
+type MapElasticAggregation<Doc extends typeof AnyDoc, Name extends keyof AggregationsAggregationContainer> = {
   [k in Name]: AggregationsAggregationContainer[Name] extends { field: string }
     ? AggregationsAggregationContainer[Name] & { field: DotKeys<Doc>}
     : AggregationsAggregationContainer[Name] extends { field?: string }
@@ -87,8 +87,8 @@ type MapElasticAggregation<Doc extends {}, Name extends keyof AggregationsAggreg
 }
 
 // Replacaements for the un-dot-typed types in ES7
-type TypedFields<Doc extends {}> = DotKeys<Doc> | DotKeys<Doc>[]
-type TypedSearchSourceFilter<Doc extends {}> = {
+type TypedFields<Doc extends typeof AnyDoc> = DotKeys<Doc> | DotKeys<Doc>[]
+type TypedSearchSourceFilter<Doc extends typeof AnyDoc> = {
   // TODO: should be exclusive
   excludes?: TypedFields<Doc>
   exclude?: TypedFields<Doc>
@@ -96,17 +96,17 @@ type TypedSearchSourceFilter<Doc extends {}> = {
   include?: TypedFields<Doc>
 }
 
-type TypedSearchSourceConfig<Doc extends {}> = boolean | TypedSearchSourceFilter<Doc> | TypedFields<Doc>
+type TypedSearchSourceConfig<Doc extends typeof AnyDoc> = boolean | TypedSearchSourceFilter<Doc> | TypedFields<Doc>
 
 /* The list of "simple" aggregations that only require a Doc parameter & can't have sub-aggregations */
 type LeafAggregationKeys = 'value_count' | 'sum' | 'missing' | 'cardinality' | 'avg' | 'min' | 'max' | 'percentiles' | 'stats'
 /* The list of "simple" aggregations that only require a Doc parameter & might have sub-aggregations */
-type NodeAggregationKeys = 'date_histogram' | 'histogram' | 'terms'
+type NodeAggregationKeys = 'date_histogram' | 'histogram' | 'terms' | 'filters' | 'filter' | 'range' | 'nested' | 'reverse_nested'
 
 /* The collection of mapped Elasticsearch aggregations that only 
  * require a Doc parameter keyed by distinguishing member
 */
-export type TypedFieldAggregations<Doc extends {}> = {
+export type TypedFieldAggregations<Doc extends typeof AnyDoc> = {
   [AggKey in NodeAggregationKeys]: MapElasticAggregation<Doc, AggKey> & OptionalNestedAggregations<Doc>
 } & {
   [AggKey in LeafAggregationKeys]: MapElasticAggregation<Doc, AggKey>
@@ -119,15 +119,15 @@ export type TypedFieldAggregations<Doc extends {}> = {
 }
 
 /* An interface from which aggregations thar can have nested aggregations can be extended */
-interface OptionalNestedAggregations<Doc extends {}> {
+interface OptionalNestedAggregations<Doc extends typeof AnyDoc> {
   aggs?: NamedAggregations<Doc>
 }
 
-export type NamedAggregations<Doc extends {}> = DeepReadonly<{
+export type NamedAggregations<Doc extends typeof AnyDoc> = DeepReadonly<{
   [aggregationName: string]: Aggregation<Doc>
 }>;
 
-type NestedAggregationResult<ThisAgg,Doc extends {}> =
+type NestedAggregationResult<ThisAgg,Doc extends typeof AnyDoc> =
   ThisAgg extends OptionalNestedAggregations<Doc>
   ? { [P in keyof ThisAgg['aggs']]: AggregationResult<ThisAgg['aggs'][P], Doc> }
   : unknown
@@ -152,7 +152,7 @@ declare namespace Aggregations {
     values: { [p: string]: number }
   }
 
-  type SourceDocFromTypedSourceConfig<SourceConfig extends Readonly<TypedSearchSourceConfig<Doc>>, Doc extends {}> = 
+  type SourceDocFromTypedSourceConfig<SourceConfig extends Readonly<TypedSearchSourceConfig<Doc>>, Doc extends typeof AnyDoc> = 
     SourceConfig extends false ? undefined 
     : SourceConfig extends true ? Doc 
     : SourceConfig extends boolean ? Doc | undefined 
@@ -162,7 +162,7 @@ declare namespace Aggregations {
         DotPick<Doc, SourceConfig['include'] | SourceConfig['includes']>
     : never
 
-  interface TopHitsResult<ThisAgg, Doc extends {}> {
+  interface TopHitsResult<ThisAgg, Doc extends typeof AnyDoc> {
     hits: {
       total: number
       max_score: number
@@ -173,73 +173,56 @@ declare namespace Aggregations {
   }
 
   /* Multi-value aggregations with buckets that can be nested */
-  interface GenericBucket<Key = string> {
+  interface GenericBucket<Key = string|number> {
     key: Key
     doc_count: number
   }
 
-  interface GenericBucketResult<ThisAgg, Doc extends {}> {
+  interface GenericBucketResult<ThisAgg extends OptionalNestedAggregations<Doc>, Doc extends typeof AnyDoc> {
     buckets: Array<GenericBucket & NestedAggregationResult<ThisAgg, Doc>>
   }
 
-  interface ReverseNested<Doc> extends OptionalNestedAggregations<Doc> {
+  interface ReverseNested<Doc extends typeof AnyDoc> extends OptionalNestedAggregations<Doc> {
     reverse_nested: {}
   }
 
-  interface Filter<Doc> extends OptionalNestedAggregations<Doc> {
-    filter: QueryDslQueryContainer
-  }
-
-  type FilterResult<ThisAgg, Doc extends {}> = NestedAggregationResult<ThisAgg, Doc> & {
+  type FilterResult<ThisAgg extends TypedFieldAggregations<Doc>['filter'], Doc extends typeof AnyDoc> = NestedAggregationResult<ThisAgg, Doc> & {
      doc_count: number
   }
 
-  interface NestedDoc<Doc> extends OptionalNestedAggregations<Doc> {
+  interface NestedDoc<Doc extends typeof AnyDoc> extends OptionalNestedAggregations<Doc> {
     nested: {
       path: string
     }
   }
 
-  type NestedDocResult<ThisAgg, Doc extends {}> = NestedAggregationResult<ThisAgg, Doc> & {
+  type NestedDocResult<ThisAgg extends (TypedFieldAggregations<Doc>['nested'] | TypedFieldAggregations<Doc>['reverse_nested']), 
+    Doc extends typeof AnyDoc> = NestedAggregationResult<ThisAgg, Doc> & {
      doc_count: number
   }
 
-  interface NamedFilters<Doc extends {}, Keys extends string> extends OptionalNestedAggregations<Doc> {
-    filters: {
-      filters: { [k in Keys]: QueryDslQueryContainer }
-    }
-  }
-  interface NamedFiltersResult<ThisAgg, Doc extends {}> {
-    buckets: ThisAgg extends NamedFilters<Doc, infer Keys> 
-      ? { [K in Keys]: GenericBucket & NestedAggregationResult<ThisAgg, Doc> }
-      : never;
-  }
-  interface OrderedFilters<Doc extends {}> extends OptionalNestedAggregations<Doc> {
-    filters: {
-      filters: QueryDslQueryContainer[]
-    }
-  }
-  interface OrderedFiltersResult<Doc extends {}, ThisAgg> {
-    buckets: Array<GenericBucket & NestedAggregationResult<ThisAgg, Doc>>
-  }
+  type FiltersResult<ThisAgg extends TypedFieldAggregations<Doc>["filters"], Doc extends typeof AnyDoc> =
+    ThisAgg['filters']['filters'] extends Array<infer F> 
+    ? { buckets: Array<GenericBucket & NestedAggregationResult<ThisAgg, Doc>> }
+    : { [K in keyof ThisAgg['filters']['filters']]: GenericBucket & NestedAggregationResult<ThisAgg, Doc> }
 
-  interface TermsResult<ThisAgg extends TypedFieldAggregations<Doc>["terms"], Doc extends {}> {
+  interface TermsResult<ThisAgg extends TypedFieldAggregations<Doc>["terms"], Doc extends typeof AnyDoc> {
     doc_count_error_upper_bound: number,
     sum_other_doc_count: number,
     buckets: Array<NestedAggregationResult<ThisAgg, Doc> & GenericBucket<UnDot<Doc,ThisAgg['terms']['field']>>>
   }
 
-  interface HistogramResult<ThisAgg extends TypedFieldAggregations<Doc>['histogram'], Doc extends {}> {
+  interface HistogramResult<ThisAgg extends TypedFieldAggregations<Doc>['histogram'], Doc extends typeof AnyDoc> {
     buckets: Array<GenericBucket<UnDot<Doc,ThisAgg['histogram']['field']>> & NestedAggregationResult<ThisAgg, Doc>>
   }
 
-  interface DateHistogramResult<ThisAgg extends TypedFieldAggregations<Doc>['date_histogram'], Doc extends {}> {
+  interface DateHistogramResult<ThisAgg extends TypedFieldAggregations<Doc>['date_histogram'], Doc extends typeof AnyDoc> {
     buckets: Array<{
       key_as_string: string
     } & GenericBucket<number> & NestedAggregationResult<ThisAgg, Doc>>
   }
 
-  interface GenericRange<Doc extends {}, Keyed> extends OptionalNestedAggregations<Doc> {
+  interface GenericRange<Doc extends typeof AnyDoc, Keyed> extends OptionalNestedAggregations<Doc> {
     range: {
       field: string
       keyed?: Keyed
@@ -256,20 +239,15 @@ declare namespace Aggregations {
     }
   }
 
-  interface Range<Doc extends {}> extends GenericRange<Doc, false | undefined> { }
-  interface KeyedRange<Doc extends {}> extends GenericRange<Doc, true> { }
+  interface RangeBucket<T> extends GenericBucket<string> {
+    from: T,
+    to: T
+  }
 
-  interface RangeBucket {
-    doc_count: number
-    from: number | string,
-    to: number | string
-  }
-  interface RangeResult<ThisAgg, Doc extends {}> {
-    buckets: Array<GenericBucket & RangeBucket & NestedAggregationResult<ThisAgg, Doc>>
-  }
-  interface KeyedRangeResult<ThisAgg, Doc extends {}> {
-    buckets: { [k: string]: RangeBucket & NestedAggregationResult<ThisAgg, Doc> }
-  }
+  type RangeResult<ThisAgg extends TypedFieldAggregations<Doc>['range'], Doc extends typeof AnyDoc> = 
+    ThisAgg['range']['keyed'] extends true 
+      ? { [k: string]: RangeBucket<UnDot<Doc,ThisAgg['range']['field']>> & NestedAggregationResult<ThisAgg, Doc> } 
+      : { buckets: Array<RangeBucket<UnDot<Doc,ThisAgg['range']['field']>> & NestedAggregationResult<ThisAgg, Doc>> } 
 }
 
 interface ValueAggMap {
@@ -286,12 +264,21 @@ interface ValueAggMap {
 //  'top_hits': Aggregations.TopHitsResult
 }
 
-interface MultiAggMap {
+/*interface MultiAggMap<T, Doc> {
+  'terms': Aggregations.TermsResult<T, Doc>,
+  'histogram': Aggregations.HistogramResult<T, Doc>,
+  'date_histogram': Aggregations.DateHistogramResult<T, Doc>,
+  'filters': Aggregations.FiltersResult<T, Doc>,
+  'filter': Aggregations.FilterResult<T, Doc>,
+  'range': Aggregations.RangeResult<T, Doc>,
+}*/
 
-}
 
-export type AggregationResult<T,Doc> =
+/* Type that relates any defined aggregation for a Doc to its result */
+export type AggregationResult<T,Doc extends typeof AnyDoc> =
   // Terminal results which cannot have inner aggs
+  // T extends TypedFieldAggregations<Doc>[infer K extends keyof ValueAggMap] ? ValueAggMap[K] : never |
+
   T extends TypedFieldAggregations<Doc>['value_count'] ? ValueAggMap['value_count'] : never |
   T extends TypedFieldAggregations<Doc>['missing'] ? ValueAggMap['missing'] : never |
   T extends TypedFieldAggregations<Doc>['cardinality'] ? ValueAggMap['cardinality'] : never |
@@ -300,8 +287,8 @@ export type AggregationResult<T,Doc> =
   T extends TypedFieldAggregations<Doc>['max'] ? ValueAggMap['max'] : never |
   T extends TypedFieldAggregations<Doc>['sum'] ? ValueAggMap['sum'] : never |
   T extends TypedFieldAggregations<Doc>['stats'] ? ValueAggMap['stats'] : never |
-  // Specialised responses
   T extends TypedFieldAggregations<Doc>['percentiles'] ? ValueAggMap['percentiles'] : never |
+
   // Special responses & aggs  
   T extends TypedFieldAggregations<Doc>['top_hits'] ? Aggregations.TopHitsResult<T, Doc> : never |
   T extends Aggregations.ScriptedMetric<infer Results,infer Params> ? Aggregations.ScriptedMetricResult<Results> : never |
@@ -310,35 +297,28 @@ export type AggregationResult<T,Doc> =
   T extends TypedFieldAggregations<Doc>['terms'] ? Aggregations.TermsResult<T, Doc> : never |
   T extends TypedFieldAggregations<Doc>['histogram'] ? Aggregations.HistogramResult<T, Doc> : never |
   T extends TypedFieldAggregations<Doc>['date_histogram'] ? Aggregations.DateHistogramResult<T, Doc> : never |
-
-  T extends Aggregations.Filter<Doc> ? Aggregations.FilterResult<T, Doc> : never |
-  T extends Aggregations.NestedDoc<Doc> ? Aggregations.NestedDocResult<T, Doc> : never |
-  T extends Aggregations.NamedFilters<Doc, infer Keys> ? Aggregations.NamedFiltersResult<T, Doc> : never |
-  T extends Aggregations.OrderedFilters<Doc> ? Aggregations.OrderedFiltersResult<T, Doc> : never |
-  T extends Aggregations.Range<Doc> ? Aggregations.RangeResult<T, Doc> : never |
-  T extends Aggregations.ReverseNested<Doc> ? NestedAggregationResult<T, Doc> : never |
+  T extends TypedFieldAggregations<Doc>['filters'] ? Aggregations.FiltersResult<T, Doc> : never |
+  T extends TypedFieldAggregations<Doc>['filter'] ? Aggregations.FilterResult<T, Doc> : never |
+  T extends TypedFieldAggregations<Doc>['range'] ? Aggregations.RangeResult<T, Doc> : never |
+  T extends TypedFieldAggregations<Doc>['nested'] ? Aggregations.NestedDocResult<T, Doc> : never |
+  T extends TypedFieldAggregations<Doc>['reverse_nested'] ? Aggregations.NestedDocResult<T, Doc> : never |
   // Generic nested aggregations, if present
   T extends OptionalNestedAggregations<Doc> ? Aggregations.GenericBucketResult<T, Doc> : never |
   never
 
-type AggregationResults<A extends NamedAggregations<Doc>, Doc extends {}> = {
+type AggregationResults<A extends NamedAggregations<Doc>, Doc extends typeof AnyDoc> = {
   [name in keyof A]: AggregationResult<A[name], Doc>
 }
 
-type Aggregation<Doc extends {}> = ExclusiveUnion<
+type Aggregation<Doc extends typeof AnyDoc> = ExclusiveUnion<
 /* Single-valued */
 TypedFieldAggregations<Doc>[LeafAggregationKeys] 
 | TypedFieldAggregations<Doc>['top_hits']
 | Aggregations.ReverseNested<Doc> 
-| Aggregations.Filter<Doc> 
-| Aggregations.NamedFilters<Doc, string>
 | Aggregations.ScriptedMetric<any, any>
 
 /* Multi-valued */
 | TypedFieldAggregations<Doc>[NodeAggregationKeys] 
-| Aggregations.OrderedFilters<Doc> 
-//| Aggregations.TopHits<any>
-| Aggregations.Range<Doc>
 | Aggregations.NestedDoc<Doc>
 
 /* This fails at runtime - there is no such aggregations. 
@@ -352,35 +332,35 @@ interface Document<Source extends {}> {
   _source: Source
 }
 
-interface SearchParams<Doc extends {}> extends Omit<SearchRequest,'body'> {
+interface SearchParams<Doc extends typeof AnyDoc> extends Omit<SearchRequest,'body'> {
   body: Omit<SearchRequest['body'],'aggs'> & {
     aggs: NamedAggregations<Doc>
   }
 }
 
-interface SearchResult <T extends SearchParams<Doc>, Doc extends {}> extends Omit<SearchResponse,'aggregations'> {
+interface SearchResult <T extends SearchParams<Doc>, Doc extends typeof AnyDoc> extends Omit<SearchResponse,'aggregations'> {
   aggregations: AggregationResults<T["body"]["aggs"], Doc>
 }
 
 // Exporeted so _unused_doc_type_inference_ can be supplied, as in:
 //   search(..., SearchDoc as Document)
 export const SourceDoc = undefined as unknown
-type AnyDocField = string | number | boolean | { [field: string]: AnyDocField }
+type AnyDocField = string | number | boolean | Date | { [field: string]: AnyDocField }
 //   search(..., AnyDoc)
 export const AnyDoc = undefined as { [field: string]: AnyDocField }
 
 declare module '@elastic/elasticsearch/api/new' {
   interface Client {
-    search<Doc extends {}, Params extends SearchParams<Doc>>(
+    search<Doc extends typeof AnyDoc, Params extends SearchParams<Doc>>(
       params: Params & { Doc: Doc })
       : TransportRequestPromise<ApiResponse<SearchResult<Params, Doc>, unknown>>
     /*
-    vsearch<Doc extends {}, Params extends SearchParams<Doc>>(
+    vsearch<Doc extends typeof AnyDoc, Params extends SearchParams<Doc>>(
       params: Params,
       _unused_doc_type_inference_?: Doc)
       : TransportRequestPromise<ApiResponse<SearchResult<Params, Doc>, unknown>>
 
-    vsearch<Doc extends {}, Params extends SearchParams<Doc>, TContext>(
+    vsearch<Doc extends typeof AnyDoc, Params extends SearchParams<Doc>, TContext>(
       params: Params,
       _unused_doc_type_inference_?: Doc,
       _unused_context_type_inference_?: TContext)
