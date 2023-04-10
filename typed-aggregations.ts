@@ -22,16 +22,23 @@ type DeepReadonly<T extends {}> = {
   readonly [P in keyof T]: T[P] extends object ? DeepReadonly<T[P]> : T[P];
 }
 
-/* Replace a fields within an object with one of the same name but different (typically narrower) type,
+type DeepPartial<T extends {}> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
+}
+  
+  /* Replace a fields within an object with one of the same name but different (typically narrower) type,
  * preserving optional state 
-*/
+* /
 type ReType<Original, New extends ({ [K in keyof Original]: any })> = {
   [S in keyof Original]: 
     S extends keyof New 
-      ? Original[S] extends undefined 
-        ? undefined | New[S] : New[S] 
+      ? /*Original[S] extends undefined 
+        ? undefined | New[S] : * / New[S] 
       : Original[S]
 }
+*/
+type ReType<Original, New extends ({ [K in keyof Original]: any })> =
+  Omit<Original, keyof New> & New ;
 
 /* Obtain the keys of a object, including nested keys in dotted notation.
   Optionally, only match keys assignable to the specified FilterUnion type,
@@ -70,12 +77,19 @@ type PickOnly<T, K extends keyof T> = {
 };
   
 /* Recursively pick fiekds specified in dot-notation */
-type DotPick<T, D extends string|string[]> = UnionToIntersection<
+type DotPick<T, D> = UnionToIntersection<
  D extends `${infer P}.${infer Q}` 
   ? { [I in Extract<P,keyof T>]: DotPick<T[I],Q> }
-  : PickOnly<T,Extract<D,keyof T>>>
+  : Pick<T,Extract<D,keyof T>>>
   
-/* Map an aggregation by name from the Elastocsearch definitions, replacing `field` 
+type CombineConstStrings<A extends Readonly<string[]>> = 
+  A extends Readonly<[infer I,...infer J]>
+  ? J extends Readonly<string[]>
+    ? I | CombineConstStrings<J> 
+    : I | J 
+  : never;
+
+/* Map an aggregation by name from the Elasticsearch definitions, replacing `field` 
   (if it exists) with the Doc-specific union of dot-notation keys 
 */
 type MapElasticAggregation<Doc extends typeof AnyDoc, Name extends keyof AggregationsAggregationContainer> = {
@@ -87,7 +101,7 @@ type MapElasticAggregation<Doc extends typeof AnyDoc, Name extends keyof Aggrega
 }
 
 // Replacaements for the un-dot-typed types in ES7
-type TypedFields<Doc extends typeof AnyDoc> = DotKeys<Doc> | DotKeys<Doc>[]
+type TypedFields<Doc extends typeof AnyDoc> = Readonly<DotKeys<Doc>> | Readonly<DotKeys<Doc>[]>
 type TypedSearchSourceFilter<Doc extends typeof AnyDoc> = {
   // TODO: should be exclusive
   excludes?: TypedFields<Doc>
@@ -113,7 +127,7 @@ export type TypedFieldAggregations<Doc extends typeof AnyDoc> = {
 } & {
   top_hits: { 
     top_hits: ReType<AggregationsAggregationContainer['top_hits'],{
-      '_source': Readonly<TypedSearchSourceConfig<Doc>>
+      '_source': TypedSearchSourceConfig<Doc>
     }> 
   }
 }
@@ -152,23 +166,25 @@ declare namespace Aggregations {
     values: { [p: string]: number }
   }
 
-  type SourceDocFromTypedSourceConfig<SourceConfig extends Readonly<TypedSearchSourceConfig<Doc>>, Doc extends typeof AnyDoc> = 
+  type SourceDocFromTypedSourceConfig<SourceConfig extends TypedSearchSourceConfig<Doc>, Doc extends typeof AnyDoc> = 
     SourceConfig extends false ? undefined 
     : SourceConfig extends true ? Doc 
     : SourceConfig extends boolean ? Doc | undefined 
-    : SourceConfig extends TypedFields<Doc> ? DotPick<Doc, SourceConfig> 
-    : SourceConfig extends TypedSearchSourceFilter<Doc> ? 
+    : SourceConfig extends string ? DotPick<Doc, SourceConfig> 
+    : SourceConfig extends Readonly<string[]> ? DotPick<Doc, CombineConstStrings<SourceConfig>>
+//    : SourceConfig extends TypedSearchSourceFilter<Doc> ? 
         // TODO : Omit the fields in `exclude|excludes`
-        DotPick<Doc, SourceConfig['include'] | SourceConfig['includes']>
-    : never
+//        DotPick<Doc, SourceConfig['include'] | SourceConfig['includes']>
+    // We can't understands the _source specification, so just assume the 
+    // result is some kind of partial Doc - some fields might be present/absent
+    : "<unk>" & Prettify<SourceConfig>
+//    : DeepPartial<Doc>
 
-  interface TopHitsResult<ThisAgg, Doc extends typeof AnyDoc> {
+  interface TopHitsResult<ThisAgg extends TypedFieldAggregations<Doc>['top_hits'], Doc extends typeof AnyDoc> {
     hits: {
       total: number
       max_score: number
-      hits: ThisAgg extends TypedFieldAggregations<Doc>['top_hits']
-        ? Document<SourceDocFromTypedSourceConfig<ThisAgg['top_hits']['_source'], Doc>>[]
-        : Document</*Deep*/Partial<Doc>>[]
+      hits: Document<SourceDocFromTypedSourceConfig<ThisAgg['top_hits']['_source'], Doc>>[]
     }
   }
 
@@ -351,7 +367,7 @@ export const AnyDoc = undefined as { [field: string]: AnyDocField }
 
 declare module '@elastic/elasticsearch/api/new' {
   interface Client {
-    search<Doc extends typeof AnyDoc, Params extends SearchParams<Doc>>(
+    vsearch<Doc extends typeof AnyDoc, Params extends SearchParams<Doc>>(
       params: Params & { Doc: Doc })
       : TransportRequestPromise<ApiResponse<SearchResult<Params, Doc>, unknown>>
     /*

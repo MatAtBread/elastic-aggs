@@ -5,7 +5,7 @@ import { AggregationResult, Client, SourceDoc, TypedFieldAggregations } from './
 type MyDoc = {n: number, o: { n: number, s: string, d: Date }, s: string};
 
 const e = new Client({});
-e.search({
+e.vsearch({
   Doc: SourceDoc as MyDoc,
   index: '',
   body:{
@@ -87,7 +87,7 @@ e.search({
         aggs:{
           aTop:{
             top_hits:{
-              _source:['n','o.n'] as const,
+              _source: /*'o.n' as const,/*/['o.n','s'] as const,
               size: 2
             }
           } 
