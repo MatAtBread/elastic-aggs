@@ -1,11 +1,11 @@
 /*** TEST CODE */
 
-import { AggregationResult, Client, SourceDoc, TypedFieldAggregations } from './typed-aggregations';
+import { Client, SourceDoc } from './typed-aggregations';
 
 type MyDoc = {n: number, o: { n: number, s: string, d: Date }, s: string};
 
 const e = new Client({});
-e.vsearch({
+const p = e.search({
   Doc: SourceDoc as MyDoc,
   index: '',
   body:{
@@ -87,7 +87,7 @@ e.vsearch({
         aggs:{
           aTop:{
             top_hits:{
-              _source: /*'o.n' as const,/*/['o.n','s'] as const,
+              _source: ['o.n','s'] as const,
               size: 2
             }
           } 
@@ -95,17 +95,37 @@ e.vsearch({
       },
       aRange: {
         range:{
-          field: 'n',
+          field: 'o.n',
           ranges:[{
             from: 0,
             to: 1,
             key: 'low'
+          },{
+            from: 1,
+            key: 'high'
+          }]
+        }
+      },
+      aKeyedRange: {
+        range:{
+          keyed: true,
+          field: 'o.n',
+          ranges:[{
+            from: 0,
+            to: 1,
+            key: 'low' as const
+          },{
+            from: 1,
+            key: 'high' as const
           }]
         }
       }
     }
   } 
-}).then(({ body: { aggregations : a }}) => {
+})
+p.then(resp => {
+  const a = resp.body.aggregations;
+
   a.aNamedFilters.big.doc_count;
   a.aIndexedFilters.buckets[0].key;
   a.aValueCount.value;
@@ -115,76 +135,6 @@ e.vsearch({
   a.aHistogram.buckets[0].key;
   a.aHistogram.buckets[0].z.doc_count
   a.aFilter.aTop.hits.hits[0]._source
+  a.aRange.buckets[0].key
+  a.aKeyedRange.high.doc_count
 });
-
-const DOC = {doc: 'abc', z: 123, q: { m: 456 }};
-const TOP: TypedFieldAggregations<typeof DOC>['top_hits'] = {
-  top_hits: {
-    _source: 'q.m'
-  }
-}
-
-const RES: AggregationResult<typeof TOP, typeof DOC> = {
-  hits:{
-    max_score:0,
-    total:0,
-    hits:[{
-      _id:'',
-      _index: '',
-      _source: {
-        q:{
-          m: 456
-        }
-      }
-    }]
-  }
-}
-
-//var w: MapElasticAggregation<MyDoc,'value_count'>;
-//w.value_count.field = 'o.n';
-
-/*
-a.v.value;
-a.t.buckets[0].c.value;
-a.s.value;
-a.h.buckets[0].z.doc_count;
-
-var n: Aggregations.NamedSubAggregations<MyDoc> = {
-  name:{
-    value_count:{
-      field: 'o.n'
-    }
-  }
-}
-
-var tt: TypedFieldAggregations<MyDoc>['terms'] = {
-  terms:{
-    field: 's'
-  },
-  aggs:{
-    sub2: {
-      min: {
-        field: 'n'
-      }
-    },
-    sub1:{
-      sum:{
-        field: 'o.n'
-      }
-    }
-  } 
-} as const;
-tt.aggs
-
-var y: AggregationResult<typeof tt, MyDoc>;
-y.buckets[0]
-
-var ka:DotKeys<MyDoc>;
-ka = 'o'
-var kn:DotKeys<MyDoc,number>;
-kn = 'o.n'
-var ks:DotKeys<MyDoc,string>;
-ks = 'o.s'
-var ko:DotKeys<MyDoc,number|string>;
-ko = 'n'
-*/
