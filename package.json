@@ -1,20 +1,30 @@
 {
   "name": "elastic-aggs",
   "version": "7.0.0",
-  "description": "Typescript definitions for type-safe ElasticSearch aggregations",
+  "description": "Typescript definitions for type-safe Elasticsearch aggregations",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Coming soon...\" && exit 1"
   },
   "keywords": [
     "Typescript",
     "types",
-    "ElasticSearch",
+    "Elasticsearch",
     "aggregations"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "MatAtBread",
+  "license": "MIT",
+  "files": [ "./typed-aggregations.ts" ],
   "peerDependencies": {
     "@elastic/elasticsearch": "^7.x"
-  }
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MatAtBread/elastic-aggs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MatAtBread/elastic-aggs/issues"
+  },
+  "homepage": "https://github.com/MatAtBread/elastic-aggs#readme"
 }

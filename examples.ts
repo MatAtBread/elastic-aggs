@@ -1,11 +1,78 @@
-/*** TEST CODE */
-
 import { Client, SourceDoc } from './typed-aggregations';
 
-type MyDoc = {n: number, o: { n: number, s: string, d: Date }, s: string};
+/* This is what is stored in the ES index */
+type MyDoc = {
+  timestamp: Date,
+  n: number, 
+  o: { 
+    n: number, 
+    s: string
+  }, 
+  s: string
+};
 
-const e = new Client({});
-const p = e.search({
+const es = new Client({
+  node: 'localhost:9200'
+});
+
+es.search({
+  // Typed aggs needs to know the document structure:
+  Doc: SourceDoc as MyDoc,
+
+  index: 'my-index',
+  body: {
+    query: {
+      range: {
+        timestamp: {
+          gte: 'now-1d'
+        }
+      }
+    },
+    aggs:{
+      chart:{
+        date_histogram:{
+          field: 'timestamp', // Constained by the Doc fields
+          interval: '15m'
+        },
+        aggs:{
+          info:{
+            stats:{
+              field: 'o.n'
+            }
+          }
+        }
+      }
+    }
+  }
+}).then( res => {
+  return res.body.aggregations.chart.buckets.map(b => b.info.avg);
+})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const p = es.search({
   Doc: SourceDoc as MyDoc,
   index: '',
   body:{
@@ -122,7 +189,7 @@ const p = e.search({
       }
     }
   } 
-})
+});
 p.then(resp => {
   const a = resp.body.aggregations;
 
