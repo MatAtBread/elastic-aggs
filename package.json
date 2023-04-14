@@ -2,7 +2,7 @@
   "name": "elastic-aggs",
   "version": "7.0.0",
   "description": "Typescript definitions for type-safe Elasticsearch aggregations",
-  "main": "index.js",
+  "types": "typed-aggregations.ts",
   "scripts": {
     "test": "echo \"Coming soon...\" && exit 1"
   },
