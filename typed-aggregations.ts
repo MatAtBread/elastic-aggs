@@ -22,7 +22,7 @@ type ExclusiveUnion<T, U = T> = T extends any
   ? T & Partial<Record<Exclude<U extends any ? keyof U : never, keyof T>, never>>
   : never
 
-type DeepReadonly<T extends {}> = {
+export type DeepReadonly<T extends {}> = {
   readonly [P in keyof T]: T[P] extends object ? DeepReadonly<T[P]> : T[P]
 }
 

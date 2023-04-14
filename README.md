@@ -11,7 +11,7 @@ Simply replace import for the Elasticsearch Client interface:
 ```
 import { Client } from 'elastic-aggs';
 ```
-The `Client` interface provided is itself based on the (peer) Elasticsearch dependancy, but with an additional function prototype for `search` that implements strongly types aggregations.
+The `Client` interface provided is itself based on the (peer) Elasticsearch dependancy, but with an additional function prototype for `search` that implements strongly typed aggregation specifications and results.
 
 To use the types, you must as a `Doc` member to the search parameter that specifies what is stored in your ES index. If you don't have a `Doc` member, you're using the standard, Elasticsearch `search` definition.
 
@@ -46,4 +46,12 @@ At present, only a limited number of aggregations are provided (see `LeafAggrega
 
 The same techniques can be used to implement many more and PRs to do so are welcome.
 
+## It doesn't work!
+It does, but it requires that strings in particular are `const` or `Readonly`. This is becuase by default Typescript expands type defintions of string constants to `string`:
 
+```
+    e = 'abc' // e is of type string
+    f = 'abc' as const; // f is of type "abc"
+```
+
+The function prototype will capture this in many cases, but if your aggregation is the result of a function call, or other expression where a constant string type is assigned to a mutable or conditional, the "constant" attribute will be lost. Use `Readonly<...>` or `DeepReadonly<...>` as the return type of such functions to avoid Typescript's native behaviour.
