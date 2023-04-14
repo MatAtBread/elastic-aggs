@@ -26,9 +26,19 @@ As the `aggs` are entered, we're prompted for `field` values based on the fields
 When handling the result, the `aggregations` have named, typed members, including nested aggregation results, quickly catching typos and incorrect aggregations.
 
 ## What's up `Doc`?
-The `Doc` member is not used as run-time. It is only used to carry the type in the additional `search` function prototype. To avoid issues with the Elasticsearch library, it should evalue to `undefined`. A constant `SourceDoc = undefined as unknown` is exported so you can easily type-case your document type. Additionally, the constant `AnyDoc` is exported if you only want the aggregation result resolution and don't require field-level results.
+The `Doc` member is not used as run-time. It is only used to carry the type in the additional `search` function prototype. To avoid issues with the Elasticsearch library, it should evalue to `undefined`. A constant `SourceDoc = undefined as unknown` is exported so you can easily type-cast your document type. 
 
-* Why is it a member?
+```
+const result = await es.search({
+    Doc: SourceDoc as SomeArbitraryTypeOfTheDocs
+    ...
+});
+```
+
+Additionally, the constant `AnyDoc` is exported if you only want the aggregation result resolution and don't require field-level results.
+
+### Why is it a member and not a type parameter?
+
 Typescript does not handle default type parameters (or variable type parameter lists) appropriately for this kind of call. It needs to capture not only the `Doc` but the exact, const (Readonly) type of the `search` parameter in order to be able to resolve the aggregations fully. Specifying it as an unused (undefined) parameter makes this possible.
 
 ## Status
