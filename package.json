@@ -1,6 +1,6 @@
 {
   "name": "elastic-aggs",
-  "version": "7.0.0",
+  "version": "7.0.0-prerelease-3",
   "description": "Typescript definitions for type-safe Elasticsearch aggregations",
   "types": "typed-aggregations.ts",
   "scripts": {
@@ -14,11 +14,10 @@
   ],
   "author": "MatAtBread",
   "license": "MIT",
-  "files": [ "./typed-aggregations.ts" ],
+  "files": [ "typed-aggregations.ts" ],
   "peerDependencies": {
     "@elastic/elasticsearch": "^7.x"
   },
-  "devDependencies": {},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/MatAtBread/elastic-aggs.git"
