@@ -97,11 +97,11 @@ type CombineConstStrings<A extends Readonly<string[]>> =
 /* Map an aggregation by name from the Elasticsearch definitions, replacing `field` 
  * (if it exists) with the Doc-specific union of dot-notation keys 
  */
-type MapElasticAggregation<Doc extends typeof AnyDoc, Name extends keyof ES.AggregationsAggregationContainer> = {
+type MapElasticAggregation<Doc extends typeof AnyDoc, Name extends keyof ES.AggregationsAggregationContainer, FieldTypeFilter> = {
   [k in Name]: ES.AggregationsAggregationContainer[Name] extends { field: string }
-    ? ES.AggregationsAggregationContainer[Name] & { field: DotKeys<Doc>}
+    ? ES.AggregationsAggregationContainer[Name] & { field: DotKeys<Doc, FieldTypeFilter>}
     : ES.AggregationsAggregationContainer[Name] extends { field?: string }
-      ? ES.AggregationsAggregationContainer[Name] & { field?: DotKeys<Doc>}
+      ? ES.AggregationsAggregationContainer[Name] & { field?: DotKeys<Doc, FieldTypeFilter>}
       : ES.AggregationsAggregationContainer[Name]
 }
 
@@ -119,7 +119,9 @@ type TypedSearchSourceFilter<Doc extends typeof AnyDoc> = {
 type TypedSearchSourceConfig<Doc extends typeof AnyDoc> = boolean | TypedSearchSourceFilter<Doc> | TypedFields<Doc>
 
 /* The list of "simple" aggregations that only require a Doc parameter & can't have sub-aggregations */
-type LeafAggregationKeys = 'value_count' | 'sum' | 'missing' | 'cardinality' | 'avg' | 'min' | 'max' | 'percentiles' | 'stats'
+type NumericLeafAggregationKeys = 'sum' | 'avg' | 'min' | 'max' | 'percentiles' | 'stats'
+type GenericLeafAggregationKeys = 'value_count' | 'missing' | 'cardinality'
+type LeafAggregationKeys = NumericLeafAggregationKeys | GenericLeafAggregationKeys;
 /* The list of "parent" aggregations that require a Doc parameter & might have sub-aggregations */
 type NodeAggregationKeys = 'date_histogram' | 'histogram' | 'terms' | 'filters' | 'filter' | 'range' | 'nested' | 'reverse_nested'
 
@@ -127,9 +129,11 @@ type NodeAggregationKeys = 'date_histogram' | 'histogram' | 'terms' | 'filters' 
  * require a Doc parameter keyed by distinguishing member
 */
 export type TypedFieldAggregations<Doc extends typeof AnyDoc> = {
-  [AggKey in NodeAggregationKeys]: MapElasticAggregation<Doc, AggKey> & OptionalNestedAggregations<Doc>
+  [AggKey in NodeAggregationKeys]: MapElasticAggregation<Doc, AggKey, AnyDocPrimitive> & OptionalNestedAggregations<Doc>
 } & {
-  [AggKey in LeafAggregationKeys]: MapElasticAggregation<Doc, AggKey>
+  [AggKey in NumericLeafAggregationKeys]: MapElasticAggregation<Doc, AggKey, number>
+} & {
+  [AggKey in GenericLeafAggregationKeys]: MapElasticAggregation<Doc, AggKey, any>
 } & {
   top_hits: { 
     top_hits: ReType<ES.AggregationsAggregationContainer['top_hits'],{
@@ -197,22 +201,21 @@ declare namespace AggregationResults {
   }
 
   /* Multi-value aggregations with buckets that can be nested */
-  interface GenericBucket<Key = string|number> {
+  interface GenericBucket<Key> {
     key: Key
     doc_count: number
   }
 
-  interface GenericBucketResult<ThisAgg extends OptionalNestedAggregations<Doc>, Doc extends typeof AnyDoc> {
-    buckets: Array<GenericBucket & NestedAggregationResult<ThisAgg, Doc>>
+  interface GenericBucketResult<ThisAgg extends OptionalNestedAggregations<Doc>, Doc extends typeof AnyDoc, TBucket extends AnyDocPrimitive> {
+    buckets: Array<GenericBucket<TBucket> & NestedAggregationResult<ThisAgg, Doc>>
   }
 
   interface ReverseNested<Doc extends typeof AnyDoc> extends OptionalNestedAggregations<Doc> {
     reverse_nested: {}
   }
 
-  type FilterResult<ThisAgg extends TypedFieldAggregations<Doc>['filter'], Doc extends typeof AnyDoc> = NestedAggregationResult<ThisAgg, Doc> & {
-     doc_count: number
-  }
+  type FilterResult<ThisAgg extends TypedFieldAggregations<Doc>['filter'], Doc extends typeof AnyDoc> 
+    = NestedAggregationResult<ThisAgg, Doc> & GenericBucket<undefined>;
 
   interface NestedDoc<Doc extends typeof AnyDoc> extends OptionalNestedAggregations<Doc> {
     nested: {
@@ -221,14 +224,13 @@ declare namespace AggregationResults {
   }
 
   type NestedDocResult<ThisAgg extends (TypedFieldAggregations<Doc>['nested'] | TypedFieldAggregations<Doc>['reverse_nested']), 
-    Doc extends typeof AnyDoc> = NestedAggregationResult<ThisAgg, Doc> & {
-     doc_count: number
-  }
+    Doc extends typeof AnyDoc> = NestedAggregationResult<ThisAgg, Doc> & GenericBucket<undefined>
 
   type FiltersResult<ThisAgg extends TypedFieldAggregations<Doc>["filters"], Doc extends typeof AnyDoc> =
     ThisAgg['filters']['filters'] extends Array<infer F> 
-    ? { buckets: Array<GenericBucket & NestedAggregationResult<ThisAgg, Doc>> }
-    : { [K in keyof ThisAgg['filters']['filters']]: GenericBucket & NestedAggregationResult<ThisAgg, Doc> }
+    // TODO: take account of 'other_bucket'/'other_bucket_key'
+    ? { buckets: Array<GenericBucket<undefined> & NestedAggregationResult<ThisAgg, Doc>> } 
+    : { buckets: { [K in keyof ThisAgg['filters']['filters']]: GenericBucket<undefined> & NestedAggregationResult<ThisAgg, Doc> } }
 
   interface TermsResult<ThisAgg extends TypedFieldAggregations<Doc>["terms"], Doc extends typeof AnyDoc> {
     doc_count_error_upper_bound: number,
@@ -252,24 +254,7 @@ declare namespace AggregationResults {
     } & GenericBucket<number> & NestedAggregationResult<ThisAgg, Doc>>
   }
 
-  interface GenericRange<Doc extends typeof AnyDoc, Keyed> extends OptionalNestedAggregations<Doc> {
-    range: {
-      field: string
-      keyed?: Keyed
-      ranges: Array<{
-        // Ideally we'd generate this from the source aggregation passed as a Generic
-        name?: Keyed extends true ? string : never
-      } & ({
-        from?: number | string,
-        to?: number | string
-      } | {
-        gte?: number | string,
-        lt?: number | string
-      })>
-    }
-  }
-
-  interface RangeBucket<T> extends GenericBucket<string> {
+  interface RangeBucket<T> extends GenericBucket<T> {
     from: T,
     to: T
   }
@@ -323,7 +308,7 @@ export type AggregationResult<T,Doc extends typeof AnyDoc> =
   T extends TypedFieldAggregations<Doc>['reverse_nested'] ? AggregationResults.NestedDocResult<T, Doc> : never |
 
   // Generic nested aggregations, if present
-  T extends OptionalNestedAggregations<Doc> ? AggregationResults.GenericBucketResult<T, Doc> : never |
+  T extends OptionalNestedAggregations<Doc> ? AggregationResults.GenericBucketResult<T, Doc, AnyDocPrimitive> : never |
   never
 
 type AggregationResults<A extends NamedAggregations<Doc>, Doc extends typeof AnyDoc> = {
@@ -365,9 +350,10 @@ interface SearchResult <T extends SearchParams<Doc>, Doc extends typeof AnyDoc> 
 // Exporeted so _unused_doc_type_inference_ can be supplied, as in:
 //   search(..., SearchDoc as Document)
 export const SourceDoc = undefined as unknown
-type AnyDocField = string | number | boolean | Date | { [field: string]: AnyDocField }
+type AnyDocPrimitive = string | number | boolean | Date
+type AnyDocNested = AnyDocPrimitive | { [field: string]: AnyDocNested }
 //   search(..., AnyDoc)
-export const AnyDoc = undefined as { [field: string]: AnyDocField }
+export const AnyDoc = undefined as { [field: string]: AnyDocNested }
 
 declare module '@elastic/elasticsearch/api/new' {
   interface Client {

@@ -31,7 +31,7 @@ es.search({
     aggs:{
       chart:{
         date_histogram:{
-          field: 'timestamp', // Constained by the Doc fields
+          field: 'timestamp', // Constrained by the Doc fields
           interval: '15m'
         },
         aggs:{
@@ -47,29 +47,6 @@ es.search({
 }).then( res => {
   return res.body.aggregations.chart.buckets.map(b => b.info.avg);
 })
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 const p = es.search({
@@ -108,7 +85,7 @@ const p = es.search({
       },
       aTerms: {
         terms:{
-          field: 'o.s'
+          field: 's'
         },
         aggs:{
           termCardinality: {
@@ -193,7 +170,7 @@ const p = es.search({
 p.then(resp => {
   const a = resp.body.aggregations;
 
-  a.aNamedFilters.big.doc_count;
+  a.aNamedFilters.buckets.big.doc_count;
   a.aIndexedFilters.buckets[0].key;
   a.aValueCount.value;
   a.aTerms.buckets[0].key;

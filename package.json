@@ -1,6 +1,6 @@
 {
   "name": "elastic-aggs",
-  "version": "7.0.0-prerelease-3",
+  "version": "7.0.0-prerelease-4",
   "description": "Typescript definitions for type-safe Elasticsearch aggregations",
   "types": "typed-aggregations.ts",
   "scripts": {
