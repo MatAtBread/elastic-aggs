@@ -1,5 +1,7 @@
 {
+    "include": ["./test-*.ts"],
     "compilerOptions": {
+        "noEmit": true,
         "target": "es2022",
         "module": "ES2022",
         "moduleResolution": "node"
